@@ -15,7 +15,8 @@ class Group extends Component {
     state = {
         isExpanded: false,
         selected: {},
-        filterBy: ''
+        filterBy: '',
+        isCollapsed: true
     }
 
     onToggle = isExpanded => {
@@ -39,7 +40,13 @@ class Group extends Component {
         }
     }
 
-    mapItems = ({ groupValue, onSelect, groupLabel, groupId, type, variant, items, ...group }, groupKey) => {
+    setCollapsed = () => {
+        this.setState({
+            isCollapsed: !this.state.isCollapsed
+        });
+    }
+
+    mapItems = ({ groupValue, onSelect, groupLabel, groupId, type, variant, items, ...group }, groupKey, maxItems) => {
         const { onFilter } = this.props;
         const { filterBy } = this.state;
         let input;
@@ -57,7 +64,7 @@ class Group extends Component {
                 (item.label && input.test(item.label)) ||
                 item.isPersistentAction
             )
-        ).map(({ value, isChecked, onClick, label, props: itemProps, id, ...item }, key) => (
+        ).slice(0, this.state.isCollapsed ? maxItems : undefined).map(({ value, isChecked, onClick, label, props: itemProps, id, isPersistentAction, ...item }, key) => (
             <SelectOption
                 {...item}
                 label={groupLabel || ''}
@@ -69,7 +76,7 @@ class Group extends Component {
                         e.stopPropagation();
                     }
 
-                    if (item.isPersistentAction) {
+                    if (isPersistentAction) {
                         return onClick();
                     }
 
@@ -229,7 +236,20 @@ class Group extends Component {
 
     render() {
         const { isExpanded, filterBy } = this.state;
-        const { groups, items, placeholder, className, selected, isFilterable, isDisabled, onFilter, onShowMore, showMoreTitle, showMoreOptions } = this.props;
+        const {
+            groups,
+            items,
+            placeholder,
+            className,
+            selected,
+            isFilterable,
+            isDisabled,
+            maxItems,
+            onFilter,
+            onShowChange,
+            showMoreTitle,
+            showLessTitle,
+            showMoreOptions } = this.props;
         const filterItems = items || groups;
 
         const showMore = {
@@ -237,13 +257,12 @@ class Group extends Component {
             variant: showMoreOptions?.variant || 'link',
             items: [{
                 ...showMoreOptions,
-                label: showMoreTitle,
+                label: this.state.isCollapsed ? showMoreTitle : showLessTitle,
                 type: groupType.button,
-                onClick: onShowMore,
+                onClick: onShowChange ? onShowChange : this.setCollapsed,
                 isPersistentAction: true
             }]
         };
-
         return (<Fragment>
             { !filterItems || (filterItems && filterItems.length <= 0) ? <Text { ...this.props } value={ `${selected}` } /> : <Select
                 className={ className }
@@ -262,7 +281,7 @@ class Group extends Component {
                 { groups && groups.length > 0 ? (
                     [
                         ...groups,
-                        ...onShowMore ? [ showMore ] : []
+                        ...(onShowChange || showMoreTitle) ? [ showMore ] : []      // presun showmore
                     ].map(({
                         value: groupValue,
                         onSelect,
@@ -272,7 +291,7 @@ class Group extends Component {
                         items,
                         ...group
                     }, groupKey) => {
-                        const filteredItems = this.mapItems({ groupValue, onSelect, groupLabel, groupId, type, items, ...group }, groupKey)
+                        const filteredItems = this.mapItems({ groupValue, onSelect, groupLabel, groupId, type, items, ...group }, groupKey, maxItems)
                         .filter(Boolean);
                         return (<SelectGroup
                             {...group}
@@ -280,7 +299,9 @@ class Group extends Component {
                             value={groupId || groupValue || groupKey}
                             label={groupLabel || ''}
                             id={groupId || `group-${groupValue || groupKey}`}
-                        >{filteredItems}</SelectGroup>);
+                        >
+                            {filteredItems}
+                        </SelectGroup>);
                     })
                 ) : (
                     this.mapItems({ items })
@@ -325,9 +346,11 @@ Group.propTypes = {
     filterBy: PropTypes.string,
     items: itemsProps,
     isFilterable: PropTypes.bool,
+    maxItems: PropTypes.number,
     onFilter: PropTypes.func,
-    onShowMore: PropTypes.func,
+    onShowChange: PropTypes.func,
     showMoreTitle: PropTypes.string,
+    showLessTitle: PropTypes.string,
     isDisabled: PropTypes.bool,
     showMoreOptions: PropTypes.shape({
         variant: PropTypes.string,
@@ -342,7 +365,8 @@ Group.defaultProps = {
     selected: {},
     filterBy: '',
     onChange: () => undefined,
-    showMoreTitle: 'Show more',
+    showMoreTitle: 'See more',
+    showLessTitle: 'See less',
     groups: [],
     isFilterable: false,
     isDisabled: false
